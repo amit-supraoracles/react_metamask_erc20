@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import Web3Modal from 'web3modal';
+import './App.css'; 
 
-// ERC20 Contract ABI (simplified)
 const ERC20_ABI = [
 	{
 		"inputs": [
@@ -330,37 +330,33 @@ const App = () => {
   const [signer, setSigner] = useState(null);
   const [address, setAddress] = useState(null);
   const [tokenBalance, setTokenBalance] = useState('0');
-  const [ethBalance, setEthBalance] = useState('0'); // Store ETH balance in ETH format with 6 decimal places
+  const [ethBalance, setEthBalance] = useState('0');
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [spender, setSpender] = useState('');
+  const [allowance, setAllowance] = useState('0');
   const [erc20Contract, setErc20Contract] = useState(null);
 
   useEffect(() => {
     const init = async () => {
       try {
-        // Create a Web3Modal instance
         const web3Modal = new Web3Modal({
           cacheProvider: true,
-          providerOptions: {}, // Add custom providers if needed
+          providerOptions: {},
         });
-
-        // Connect to the selected wallet provider
         const instance = await web3Modal.connect();
-        const provider = new ethers.providers.Web3Provider(instance, "sepolia");
+        const provider = new ethers.providers.Web3Provider(instance);
         setProvider(provider);
 
-        // Get signer and user address
         const signer = provider.getSigner();
         setSigner(signer);
         const address = await signer.getAddress();
         setAddress(address);
 
-        // Initialize ERC20 contract (replace with actual ERC20 contract address)
         const tokenAddress = '0x082Fd82aD86b5AfAD314E6e449492540A7e6A5C7'; // Replace with your actual ERC20 token address
         const contract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
         setErc20Contract(contract);
 
-        // Fetch balances
         updateBalances(contract, address, provider);
       } catch (error) {
         console.error('Error during wallet connection', error);
@@ -373,7 +369,6 @@ const App = () => {
 
   useEffect(() => {
     if (provider && address) {
-      // Fetch balances whenever the provider or address changes
       updateBalances(erc20Contract, address, provider);
     }
   }, [erc20Contract, provider, address]);
@@ -381,15 +376,12 @@ const App = () => {
   const updateBalances = async (contract, address, provider) => {
     if (contract && address && provider) {
       try {
-        // Get token balance
         const tokenBalance = await contract.balanceOf(address);
         setTokenBalance(ethers.utils.formatUnits(tokenBalance, 18));
 
-        // Get Ether balance in Wei
         const ethBalanceWei = await provider.getBalance(address);
-        // Convert to Ether and limit to 6 decimal places
         const ethBalanceFormatted = Number(ethers.utils.formatEther(ethBalanceWei)).toFixed(6);
-        setEthBalance(ethBalanceFormatted); // Set ETH balance with 6 decimal places
+        setEthBalance(ethBalanceFormatted);
       } catch (error) {
         console.error('Error fetching balances', error);
       }
@@ -410,12 +402,36 @@ const App = () => {
     }
   };
 
+  const handleApprove = async () => {
+    if (!signer || !erc20Contract) return;
+
+    try {
+      const tx = await erc20Contract.connect(signer).approve(spender, ethers.utils.parseUnits(amount, 18));
+      await tx.wait();
+      alert('Approval successful');
+    } catch (error) {
+      console.error('Approval failed', error);
+      alert('Approval failed');
+    }
+  };
+
+  const checkAllowance = async () => {
+    if (!erc20Contract) return;
+
+    try {
+      const allowance = await erc20Contract.allowance(address, spender);
+      setAllowance(ethers.utils.formatUnits(allowance, 18));
+    } catch (error) {
+      console.error('Error checking allowance', error);
+    }
+  };
+
   return (
     <div className="App">
-      <h1>ERC20 Token Transfer</h1>
+      <h1>ERC20 Token Operations</h1>
       <p><strong>Address:</strong> {address}</p>
       <p><strong>Token Balance:</strong> {tokenBalance} Tokens</p>
-      <p><strong>Ether Balance (ETH):</strong> {ethBalance} ETH</p> {/* Show ETH balance in ETH format with 6 decimals */}
+      <p><strong>Ether Balance (ETH):</strong> {ethBalance} ETH</p>
 
       <div>
         <h2>Transfer ERC20 Token</h2>
@@ -432,6 +448,35 @@ const App = () => {
           onChange={(e) => setAmount(e.target.value)}
         />
         <button onClick={handleTransfer}>Transfer</button>
+      </div>
+
+      <div>
+        <h2>Approve Spender</h2>
+        <input
+          type="text"
+          placeholder="Spender address"
+          value={spender}
+          onChange={(e) => setSpender(e.target.value)}
+        />
+        <input
+          type="text"
+          placeholder="Amount"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <button onClick={handleApprove}>Approve</button>
+      </div>
+
+      <div>
+        <h2>Check Allowance</h2>
+        <input
+          type="text"
+          placeholder="Spender address"
+          value={spender}
+          onChange={(e) => setSpender(e.target.value)}
+        />
+        <button onClick={checkAllowance}>Check Allowance</button>
+        <p><strong>Allowance:</strong> {allowance} Tokens</p>
       </div>
     </div>
   );
